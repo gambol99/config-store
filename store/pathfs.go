@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gambol99/config-store/cache"
 	"github.com/gambol99/config-store/store/config"
@@ -26,6 +27,13 @@ import (
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
+/*
+Wasn't really sure how to implement this; etcd does provide a means to retrieve creation, modified
+timestamps. Since i dont want to place it as a requirement of the k/v store, we could read the entire configuration
+into a memory tree map and associate the metadata ... or we could use a map to track changes - which is want i'm using
+at the moment
+ */
+
 type FuseKVFileSystem struct {
 	/* the path file system interface we have to implement */
 	pathfs.FileSystem
@@ -33,8 +41,11 @@ type FuseKVFileSystem struct {
 	Cache cache.CacheStore
 	/* the kv agent we are using */
 	StoreKV config.KVStore
+	/* the time we were created / initialized */
+	BigBang time.Time
+	/* a map of file name to last change event */
+	NodeChanges map[string]time.Time
 }
-
 var backend_kv_url *string
 
 const FUSE_VERBOSE_LEVEL = 7
@@ -44,7 +55,33 @@ func Verbose(message string, args ...interface{}) {
 }
 
 func init() {
-	backend_kv_url = flag.String("kv", "etcd://127.0.0.1:4001", "the backend url for the key/value store")
+	backend_kv_url = flag.String( "kv", "etcd://127.0.0.1:4001", "the backend url for the key/value store" )
+}
+
+func (px *FuseKVFileSystem) NodeWatcher() error {
+	updateChannel := make(chan config.NodeChange,0)
+	stopChannel, err := px.StoreKV.Watch( "/", updateChannel )
+	if err != nil {
+		glog.Errorf("Unable to create a watch on root, error: %s", err )
+		return err
+	}
+	go func() {
+		for {
+			/* step: we wait for an update */
+			update := <- updateChannel
+			Verbose("NodeWatcher() update: %s", update )
+			switch update.Operation {
+			case config.CHANGED:
+				px.NodeChanges[update.Node.Path] = time.Now()
+			case config.DELETED:
+				if _, found := px.NodeChanges[update.Node.Path]; found {
+					delete(px.NodeChanges,update.Node.Path)
+				}
+			}
+		}
+		stopChannel <- true
+	}()
+	return nil
 }
 
 func (px *FuseKVFileSystem) Unlink(name string, context *fuse.Context) (code fuse.Status) {
@@ -60,15 +97,20 @@ func (px *FuseKVFileSystem) Unlink(name string, context *fuse.Context) (code fus
 func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	if name == "" {
 		return &fuse.Attr{
-			Mode: fuse.S_IFDIR | 0666,
+			Mode: fuse.S_IFDIR | 0555,
 		}, fuse.OK
 	}
 	if node, err := px.StoreKV.Get(name); err != nil {
 		glog.Errorf("GetAttr() failed get atrtribute, path: %s, error: %s", name, err)
 		return nil, fuse.ENOENT
 	} else {
-		var attr fuse.Attr
-
+		attr := fuse.Attr{}
+		attr.Ctime = uint64(px.BigBang.Unix())
+		if _, found := px.NodeChanges[name]; found {
+			attr.Mtime = uint64(px.NodeChanges[name].Unix())
+		} else {
+			attr.Mtime = uint64(px.BigBang.Unix())
+		}
 		if node.IsDir() {
 			attr = fuse.Attr{Mode: fuse.S_IFDIR | 0555 }
 		} else {

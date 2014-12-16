@@ -120,9 +120,9 @@ func (r *ConsulClient) List(path string) ([]Node, error) {
 	}
 }
 
-func (r *ConsulClient) Watch(key string, updateChannel chan NodeChange) (err error, stopChannel chan bool) {
+func (r *ConsulClient) Watch(key string, updateChannel chan NodeChange) (chan bool,error) {
 	Verbose("Watch() key: %s, channel: %V", key, updateChannel)
-	stopChannel = make(chan bool)
+	stopChannel := make(chan bool,0)
 	killOffWatch := false
 	go func() {
 		/* step: wait for the shutdown signal */
@@ -155,7 +155,7 @@ func (r *ConsulClient) Watch(key string, updateChannel chan NodeChange) (err err
 			updateChannel <- r.GetNodeEvent(response)
 		}
 	}()
-	return nil, stopChannel
+	return stopChannel, nil
 }
 
 func (r *ConsulClient) GetNodeEvent(response *consulapi.KVPair) (event NodeChange) {

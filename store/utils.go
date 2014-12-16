@@ -16,6 +16,7 @@ package store
 import (
 	"errors"
 	"net/url"
+	"time"
 
 	"github.com/gambol99/config-store/cache"
 	"github.com/gambol99/config-store/store/config"
@@ -47,6 +48,8 @@ func NewFuseKVFileSystem() (pathfs.FileSystem, error) {
 		glog.Errorf("Failed to create the K/V agent for filesystem, error: %s", err)
 		return nil, err
 	}
-	fs := &FuseKVFileSystem{pathfs.NewDefaultFileSystem(),cache.NewCacheStore(),kv_agent}
+	fs := &FuseKVFileSystem{pathfs.NewDefaultFileSystem(),
+		cache.NewCacheStore(),kv_agent,
+		time.Now(),make(map[string]time.Time,0)}
 	return fs, nil
 }

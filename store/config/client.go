@@ -43,15 +43,15 @@ type KVStore interface {
 	/* Create a directory node */
 	Mkdir(path string) error
 	/* watch for changes on the key */
-	Watch(key string, updateChannel chan NodeChange) (err error, stopChannel chan bool)
+	Watch(key string, updateChannel chan NodeChange) (chan bool, error)
 }
 
 type Action int
 
 const (
-	UNKNOWN = 0 << iota
-	CHANGED
-	DELETED
+	UNKNOWN = 0
+	CHANGED = 1
+	DELETED = 2
 )
 
 const (

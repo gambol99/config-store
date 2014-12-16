@@ -29,7 +29,7 @@ type DiscoveryAgent interface {
 	/* search for service which match the filter */
 	FindServices(filter string) ([]Service, error)
 	/* notify my channel of updates to services */
-	WatchServices(services *Service, updateChannel chan *Service) (stopChannel chan bool, error)
+	WatchServices(services *Service, updateChannel chan *Service) (chan bool, error)
 }
 
 type Service struct {

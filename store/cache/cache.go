@@ -20,11 +20,13 @@ import (
 	"github.com/golang/glog"
 )
 
-type CacheStore interface {
+type Cache interface {
 	/* retrieve an entry from the cache */
-	Get(string) interface{}
+	Get(string) (interface{},bool)
 	/* set a entry in the cache */
 	Set(string, interface{},time.Duration)
+	/* Remvoe a key from the cache */
+	Delete(string)
 	/* check if a key exist in the cache */
 	Exists(string) bool
 	/* get the size of the cache */
@@ -40,29 +42,69 @@ type CachedItem struct {
 	Data 		interface {}
 }
 
-type Cache struct {
+type CacheStore struct {
 	/* locking required for the cache */
 	sync.RWMutex
 	/* the cache map */
 	Items map[string]*CachedItem
 }
 
-func NewCacheStore() CacheStore {
+func NewCacheStore() Cache {
 	glog.Infof("Creating a new cache store")
-	return &Cache{Items: make(map[string]*CachedItem)}
+	return &CacheStore{Items: make(map[string]*CachedItem)}
 }
 
-func (c *Cache) Get(key string) interface{} {
+/*
+The reaper is responsible for looping around and removing any cache item thats
+old
+ */
+func (c *CacheStore) Reaper() {
+	go func() {
+		for {
+			/* step: reap any old items */
+			c.ReapItems()
+			/* step: go to sleep */
+			time.Sleep( 5 * time.Second )
+		}
+	}()
+}
+
+func (c *CacheStore) ReapItems() {
+	c.Lock()
+	defer c.Unlock()
+	if len( c.Items ) <= 0 {
+		glog.V(5).Infof("Cache Reaper: no items in the cache to reap" )
+		return
+	}
+	now := time.Now().Unix()
+	for key, item := range c.Items {
+		if item.Expiring > 0 && now >= item.Expiring {
+			glog.V(6).Infof("Expiring the item: %s", item )
+			delete( c.Items, key )
+		}
+	}
+}
+
+func (c *CacheStore) Get(key string) (interface{},bool) {
+	/* step: if the key is empty return */
+	if key == "" {
+		return nil, false
+	}
 	c.RLock()
 	defer c.RUnlock()
 	glog.V(9).Infof("Get() key: %s", key)
 	if item, found := c.Items[key]; found {
-		return item.Data
+		glog.V(10).Infof("Get() key: %s found in cache", key )
+		return item.Data, true
 	}
-	return nil
+	return nil, false
 }
 
-func (c *Cache) Set(key string, item interface{}, ttl time.Duration) {
+func (c *CacheStore) Set(key string, item interface{}, ttl time.Duration ) {
+	/* step: if the key is empty return */
+	if key == "" {
+		return
+	}
 	c.Lock()
 	defer c.Unlock()
 	expiration_time := int64(0)
@@ -73,21 +115,29 @@ func (c *Cache) Set(key string, item interface{}, ttl time.Duration) {
 	c.Items[key] = &CachedItem{expiration_time,item}
 }
 
-func (c *Cache) Exists(key string) (found bool) {
+func (c *CacheStore) Delete(key string) {
+	if found := c.Exists(key); found {
+		c.Lock()
+		defer c.Unlock()
+		delete(c.Items, key)
+	}
+}
+
+func (c *CacheStore) Exists(key string) (found bool) {
 	c.RLock()
 	defer c.RUnlock()
 	_, found = c.Items[key]
 	return
 }
 
-func (c *Cache) Flush() error {
+func (c *CacheStore) Flush() error {
 	c.Lock()
 	defer c.Unlock()
 	c.Items = make(map[string]*CachedItem)
 	return nil
 }
 
-func (c *Cache) Size() int {
+func (c *CacheStore) Size() int {
 	c.RLock()
 	defer c.RUnlock()
 	return len(c.Items)

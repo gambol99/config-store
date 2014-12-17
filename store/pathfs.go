@@ -46,6 +46,7 @@ type FuseKVFileSystem struct {
 	/* a map of file name to last change event */
 	NodeChanges map[string]time.Time
 }
+
 var backend_kv_url *string
 
 const FUSE_VERBOSE_LEVEL = 7
@@ -96,12 +97,8 @@ func (px *FuseKVFileSystem) Unlink(name string, context *fuse.Context) (code fus
 
 func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	if name == "" {
-		return &fuse.Attr{
-			Mode: fuse.S_IFDIR | 0555,
-		}, fuse.OK
+		return &fuse.Attr{Mode: fuse.S_IFDIR | 0555}, fuse.OK
 	}
-	Verbose("GetAttr() name: %s, context: %v", name, context )
-
 	if node, err := px.StoreKV.Get(name); err != nil {
 		glog.Errorf("GetAttr() failed get atrtribute, path: %s, error: %s", name, err)
 		return nil, fuse.ENOENT

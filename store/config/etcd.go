@@ -40,8 +40,9 @@ func NewEtcdStoreClient(uri *url.URL) (KVStore, error) {
 	for _, etcd_host := range strings.Split(uri.Host, ",") {
 		store.Hosts = append(store.Hosts, "http://"+etcd_host)
 	}
-	glog.Infof("Creating a Etcd Clinet, hosts: %s", store.Hosts)
+	glog.Infof("Creating a Etcd Client, hosts: %s", store.Hosts)
 	store.Client = etcd.NewClient(store.Hosts)
+	store.Client.SetConsistency( etcd.WEAK_CONSISTENCY )
 	return store, nil
 }
 
@@ -54,15 +55,7 @@ func (r *EtcdStoreClient) Get(key string) (node Node, err error) {
 		glog.Errorf("Failed to get the key: %s, error: %s", key, err)
 		return node, err
 	} else {
-		/* step: fill in the node entry */
-		node.Path = key
-		if response.Node.Dir {
-			node.Directory = true
-		} else {
-			node.Value = response.Node.Value
-			node.Directory = false
-		}
-		return node, nil
+		return r.CreateNode(response.Node), nil
 	}
 }
 
@@ -128,15 +121,7 @@ func (r *EtcdStoreClient) List(path string) ([]Node, error) {
 			return nil, InvalidDirectoryErr
 		}
 		for _, item := range response.Node.Nodes {
-			node := Node{}
-			node.Path = item.Key
-			if item.Dir == false {
-				node.Directory = false
-				node.Value     = item.Value
-			} else {
-				node.Directory = true
-			}
-			list = append(list, node)
+			list = append(list, r.CreateNode( item ) )
 		}
 		return list, nil
 	}
@@ -169,13 +154,24 @@ func (r *EtcdStoreClient) Watch(key string, updateChannel chan NodeChange) (chan
 			}
 			/* step: pass the change upstream */
 			Verbose("Watch() sending the change for key: %s upstream", key)
-			updateChannel <- r.GetNode(response)
+			updateChannel <- r.GetNodeEvent(response)
 		}
 	}()
 	return stopChannel,nil
 }
 
-func (r *EtcdStoreClient) GetNode(response *etcd.Response) (event NodeChange) {
+func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (node Node) {
+	node.Path = response.Key
+	if response.Dir == false {
+		node.Directory = false
+		node.Value     = response.Value
+	} else {
+		node.Directory = true
+	}
+	return
+}
+
+func (r *EtcdStoreClient) GetNodeEvent(response *etcd.Response) (event NodeChange) {
 	event.Node.Path = response.Node.Key
 	event.Node.Value = response.Node.Value
 	switch response.Action {

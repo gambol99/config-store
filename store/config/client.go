@@ -54,11 +54,6 @@ const (
 	DELETED = 2
 )
 
-const (
-	NODE_DIRECTORY = 0
-	NODE_FILE      = 1
-)
-
 type NodeChange struct {
 	/* The node in question */
 	Node Node
@@ -72,22 +67,19 @@ type Node struct {
 	/* the value of the key */
 	Value string
 	/* the type of node it is, directory or file */
-	Type int
+	Directory bool
 }
 
 func (n Node) String() string {
-	return fmt.Sprintf("path: %s, value: %s, type: %d", n.Path, n.Value, n.Type )
+	return fmt.Sprintf("path: %s, value: %s, type: %s", n.Path, n.Value, n.Directory )
 }
 
 func (n Node) IsDir() bool {
-	if n.Type == NODE_DIRECTORY {
-		return true
-	}
-	return false
+	return n.Directory
 }
 
 func (n Node) IsFile() bool {
-	if n.IsDir() {
+	if n.Directory {
 		return false
 	}
 	return true

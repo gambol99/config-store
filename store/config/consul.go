@@ -64,7 +64,7 @@ func (r *ConsulClient) Get(key string) (node Node, err error) {
 	}
 	node.Path = key
 	node.Value = string(response.Value[:])
-	node.Type = NODE_FILE
+	node.Directory = true
 	return
 }
 
@@ -111,7 +111,7 @@ func (r *ConsulClient) List(path string) ([]Node, error) {
 		list := make([]Node, 0)
 		for _, pair := range response {
 			node := Node{}
-			node.Type = NODE_FILE
+			node.Directory = true
 			node.Path = pair.Key
 			node.Value = string(pair.Value[:])
 			list = append(list, node)

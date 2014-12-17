@@ -29,9 +29,9 @@ import (
 
 /*
 Wasn't really sure how to implement this; etcd does provide a means to retrieve creation, modified
-timestamps. Since i dont want to place it as a requirement of the k/v store, we could read the entire configuration
-into a memory tree map and associate the metadata ... or we could use a map to track changes - which is want i'm using
-at the moment
+timestamps. Since i dont want to place it as a requirement of the k/v store, we could read the entire
+configuration into a memory tree map and associate the metadata ... or we could use a map to track
+changes - which is want i'm using at the moment
  */
 
 type FuseKVFileSystem struct {
@@ -100,21 +100,24 @@ func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.A
 			Mode: fuse.S_IFDIR | 0555,
 		}, fuse.OK
 	}
+	Verbose("GetAttr() name: %s, context: %v", name, context )
+
 	if node, err := px.StoreKV.Get(name); err != nil {
 		glog.Errorf("GetAttr() failed get atrtribute, path: %s, error: %s", name, err)
 		return nil, fuse.ENOENT
 	} else {
-		attr := fuse.Attr{}
+		var attr fuse.Attr
 		attr.Ctime = uint64(px.BigBang.Unix())
-		if _, found := px.NodeChanges[name]; found {
-			attr.Mtime = uint64(px.NodeChanges[name].Unix())
+		if _, found := px.NodeChanges[node.Path]; found {
+			attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
 		} else {
 			attr.Mtime = uint64(px.BigBang.Unix())
 		}
 		if node.IsDir() {
-			attr = fuse.Attr{Mode: fuse.S_IFDIR | 0555 }
+			attr.Mode = fuse.S_IFDIR | 0665
 		} else {
-			attr = fuse.Attr{Mode: fuse.S_IFREG | 0444, Size: uint64(len(node.Value))}
+			attr.Mode = fuse.S_IFREG | 0444
+			attr.Size = uint64(len(node.Value))
 		}
 		return &attr, fuse.OK
 	}

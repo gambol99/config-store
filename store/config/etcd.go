@@ -46,30 +46,33 @@ func NewEtcdStoreClient(uri *url.URL) (KVStore, error) {
 }
 
 func (r *EtcdStoreClient) Get(key string) (node Node, err error) {
+	if !strings.HasPrefix(key, "/") {
+		key = "/" + key
+	}
 	response, err := r.GetRaw(key)
 	if err != nil {
 		glog.Errorf("Failed to get the key: %s, error: %s", key, err)
 		return node, err
-	}
-	node.Path = key
-	if response.Node.Dir == false {
-		node.Value = ""
-		node.Type  = NODE_DIRECTORY
 	} else {
-		node.Value = response.Node.Value
-		node.Type  = NODE_FILE
+		/* step: fill in the node entry */
+		node.Path = key
+		if response.Node.Dir {
+			node.Directory = true
+		} else {
+			node.Value = response.Node.Value
+			node.Directory = false
+		}
+		return node, nil
 	}
-	return node, nil
 }
 
 func (r *EtcdStoreClient) GetRaw(key string) (response *etcd.Response, err error) {
 	Verbose("GetRaw() key: %s", key)
-	response, err = r.Client.Get(key, false, false)
+	response, err = r.Client.Get( key, false, false)
 	if err != nil {
 		glog.Errorf("Failed to get the key: %s, error: %s", key, err)
 		return nil, err
 	}
-	Verbose("GetRaw() key: %s, value: %s", key, response.Node.Value)
 	return response, nil
 }
 
@@ -111,13 +114,16 @@ func (r *EtcdStoreClient) Mkdir(path string) error {
 }
 
 func (r *EtcdStoreClient) List(path string) ([]Node, error) {
-	Verbose("List() path: %s", path)
+	if !strings.HasPrefix(path, "/" ) || path == "" {
+		path = "/" + path
+	}
+	Verbose("List() path: %s", path )
 	if response, err := r.GetRaw(path); err != nil {
 		glog.Errorf("List() failed to get path: %s, error: %s", path, err)
 		return nil, err
 	} else {
 		list := make([]Node, 0)
-		if !response.Node.Dir {
+		if response.Node.Dir == false {
 			glog.Errorf("List() path: %s is not a directory node", path)
 			return nil, InvalidDirectoryErr
 		}
@@ -125,13 +131,12 @@ func (r *EtcdStoreClient) List(path string) ([]Node, error) {
 			node := Node{}
 			node.Path = item.Key
 			if item.Dir == false {
-				node.Type  = NODE_FILE
-				node.Value = item.Value
+				node.Directory = false
+				node.Value     = item.Value
 			} else {
-				node.Type  = NODE_DIRECTORY
+				node.Directory = true
 			}
 			list = append(list, node)
-			glog.Infof("List() item: %V, node: %V", item, node )
 		}
 		return list, nil
 	}

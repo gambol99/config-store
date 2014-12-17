@@ -51,5 +51,8 @@ func NewFuseKVFileSystem() (pathfs.FileSystem, error) {
 	fs := &FuseKVFileSystem{pathfs.NewDefaultFileSystem(),
 		cache.NewCacheStore(),kv_agent,
 		time.Now(),make(map[string]time.Time,0)}
+
+	/* step: start the node watcher */
+	fs.NodeWatcher()
 	return fs, nil
 }

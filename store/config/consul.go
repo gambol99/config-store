@@ -53,19 +53,16 @@ func NewConsulStoreClient(uri *url.URL) (KVStore, error) {
 	return kv, nil
 }
 
-func (r *ConsulClient) Get(key string) (node Node, err error) {
-	response, _, err := r.Client.KV().Get(key, &consulapi.QueryOptions{})
-	if err != nil {
+func (r *ConsulClient) Get(key string) (Node,error) {
+	if response, _, err := r.Client.KV().Get(key, &consulapi.QueryOptions{}); err != nil {
 		glog.Errorf("Get() failed to get key: %s, error: %s", key, err)
-		return node, err
+		return Node{}, err
+	} else {
+		return Node{
+			Path: key,
+			Value: string(response.Value[:]),
+			Directory: true}, nil
 	}
-	if response == nil {
-		return node, nil
-	}
-	node.Path = key
-	node.Value = string(response.Value[:])
-	node.Directory = true
-	return
 }
 
 func (r *ConsulClient) Set(key string, value string) error {
@@ -110,10 +107,10 @@ func (r *ConsulClient) List(path string) ([]Node, error) {
 	} else {
 		list := make([]Node, 0)
 		for _, pair := range response {
-			node := Node{}
-			node.Directory = true
-			node.Path = pair.Key
-			node.Value = string(pair.Value[:])
+			node := Node{
+				Path: pair.Key,
+				Directory: true,
+				Value: string(pair.Value[:])}
 			list = append(list, node)
 		}
 		return list, nil

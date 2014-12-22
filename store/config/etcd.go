@@ -46,14 +46,14 @@ func NewEtcdStoreClient(uri *url.URL) (KVStore, error) {
 	return store, nil
 }
 
-func (r *EtcdStoreClient) Get(key string) (node Node, err error) {
+func (r *EtcdStoreClient) Get(key string) (Node,error) {
 	if !strings.HasPrefix(key, "/") {
 		key = "/" + key
 	}
-	response, err := r.GetRaw(key)
-	if err != nil {
+	/* step: lets check the cache */
+	if response, err := r.GetRaw(key); err != nil {
 		glog.Errorf("Failed to get the key: %s, error: %s", key, err)
-		return node, err
+		return Node{}, err
 	} else {
 		return r.CreateNode(response.Node), nil
 	}
@@ -160,7 +160,8 @@ func (r *EtcdStoreClient) Watch(key string, updateChannel chan NodeChange) (chan
 	return stopChannel,nil
 }
 
-func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (node Node) {
+func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (Node) {
+	node := Node{}
 	node.Path = response.Key
 	if response.Dir == false {
 		node.Directory = false
@@ -168,7 +169,7 @@ func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (node Node) {
 	} else {
 		node.Directory = true
 	}
-	return
+	return node
 }
 
 func (r *EtcdStoreClient) GetNodeEvent(response *etcd.Response) (event NodeChange) {

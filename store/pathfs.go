@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gambol99/config-store/cache"
+	"github.com/gambol99/config-store/store/cache"
 	"github.com/gambol99/config-store/store/config"
 	"github.com/golang/glog"
 	"github.com/hanwen/go-fuse/fuse"
@@ -38,7 +38,7 @@ type FuseKVFileSystem struct {
 	/* the path file system interface we have to implement */
 	pathfs.FileSystem
 	/* the cache used by the fs */
-	Cache cache.CacheStore
+	Cache cache.Cache
 	/* the kv agent we are using */
 	StoreKV config.KVStore
 	/* the time we were created / initialized */
@@ -79,6 +79,8 @@ func (px *FuseKVFileSystem) NodeWatcher() error {
 					delete(px.NodeChanges,update.Node.Path)
 				}
 			}
+			/* step: remove the node from the cache */
+			px.Cache.Delete(update.Node.Path)
 		}
 		stopChannel <- true
 	}()
@@ -95,29 +97,43 @@ func (px *FuseKVFileSystem) Unlink(name string, context *fuse.Context) (code fus
 	return fuse.OK
 }
 
+func (px *FuseKVFileSystem) Cached(key string) (config.Node,error) {
+	if node, found := px.Cache.Get(key); !found {
+		item, err := px.StoreKV.Get(key)
+		if err != nil {
+			glog.Errorf("GetAttr() failed get attribute, path: %s, error: %s", key, err)
+			return config.Node{}, err
+		}
+		px.Cache.Set(key,item,0)
+		return item, nil
+	} else {
+		return node.(config.Node), nil
+	}
+}
+
 func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	if name == "" {
 		return &fuse.Attr{Mode: fuse.S_IFDIR | 0555}, fuse.OK
 	}
-	if node, err := px.StoreKV.Get(name); err != nil {
-		glog.Errorf("GetAttr() failed get atrtribute, path: %s, error: %s", name, err)
+	node, err := px.Cached(name)
+	if err != nil {
 		return nil, fuse.ENOENT
-	} else {
-		var attr fuse.Attr
-		attr.Ctime = uint64(px.BigBang.Unix())
-		if _, found := px.NodeChanges[node.Path]; found {
-			attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
-		} else {
-			attr.Mtime = uint64(px.BigBang.Unix())
-		}
-		if node.IsDir() {
-			attr.Mode = fuse.S_IFDIR | 0665
-		} else {
-			attr.Mode = fuse.S_IFREG | 0444
-			attr.Size = uint64(len(node.Value))
-		}
-		return &attr, fuse.OK
 	}
+
+	var attr fuse.Attr
+	attr.Ctime = uint64(px.BigBang.Unix())
+	if _, found := px.NodeChanges[node.Path]; found {
+		attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
+	} else {
+		attr.Mtime = uint64(px.BigBang.Unix())
+	}
+	if node.IsDir() {
+		attr.Mode = fuse.S_IFDIR | 0665
+	} else {
+		attr.Mode = fuse.S_IFREG | 0444
+		attr.Size = uint64(len(node.Value))
+	}
+	return &attr, fuse.OK
 }
 
 func (px *FuseKVFileSystem) Rmdir(name string, context *fuse.Context) (code fuse.Status) {
@@ -143,21 +159,26 @@ func (px *FuseKVFileSystem) Create(name string, flags uint32, mode uint32, conte
 func (px *FuseKVFileSystem) OpenDir(name string, context *fuse.Context) (stream []fuse.DirEntry, status fuse.Status) {
 	entries := []fuse.DirEntry{}
 	/* step: get a list of the nodes under the path */
-	if nodes, err := px.StoreKV.List(name); err != nil {
-		glog.Errorf("OpenDir() path: %s, context: %V, error: %s", name, context, err)
-		return entries, fuse.EPERM
-	} else {
-		for _, node := range nodes {
-			chunks := strings.Split(node.Path, "/")
-			file := chunks[len(chunks)-1]
-			if node.IsDir() {
-				entries = append(entries, fuse.DirEntry{Name: file, Mode: fuse.S_IFDIR })
-			} else {
-				entries = append(entries, fuse.DirEntry{Name: file, Mode: fuse.S_IFREG })
-			}
+	items, found := px.Cache.Get(name)
+	if !found {
+		nodes, err := px.StoreKV.List(name)
+		if err != nil {
+			glog.Errorf("OpenDir() path: %s, context: %V, error: %s", name, context, err)
+			return entries, fuse.EPERM
 		}
-		return entries, fuse.OK
+		px.Cache.Set(name,nodes,0)
+		items = nodes
 	}
+	for _, node := range items.([]config.Node) {
+		chunks := strings.Split(node.Path, "/")
+		file := chunks[len(chunks)-1]
+		if node.IsDir() {
+			entries = append(entries, fuse.DirEntry{Name: file, Mode: fuse.S_IFDIR })
+		} else {
+			entries = append(entries, fuse.DirEntry{Name: file, Mode: fuse.S_IFREG })
+		}
+	}
+	return entries, fuse.OK
 }
 
 func (px *FuseKVFileSystem) String() string {

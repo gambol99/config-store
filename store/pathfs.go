@@ -97,17 +97,17 @@ func (px *FuseKVFileSystem) Unlink(name string, context *fuse.Context) (code fus
 	return fuse.OK
 }
 
-func (px *FuseKVFileSystem) Cached(key string) (config.Node,error) {
+func (px *FuseKVFileSystem) Cached(key string) (*config.Node,error) {
 	if node, found := px.Cache.Get(key); !found {
 		item, err := px.StoreKV.Get(key)
 		if err != nil {
 			glog.Errorf("GetAttr() failed get attribute, path: %s, error: %s", key, err)
-			return config.Node{}, err
+			return nil, err
 		}
 		px.Cache.Set(key,item,0)
 		return item, nil
 	} else {
-		return node.(config.Node), nil
+		return node.(*config.Node), nil
 	}
 }
 
@@ -115,25 +115,24 @@ func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.A
 	if name == "" {
 		return &fuse.Attr{Mode: fuse.S_IFDIR | 0555}, fuse.OK
 	}
-	node, err := px.Cached(name)
-	if err != nil {
+	if node, err := px.Cached(name); err != nil {
 		return nil, fuse.ENOENT
-	}
-
-	var attr fuse.Attr
-	attr.Ctime = uint64(px.BigBang.Unix())
-	if _, found := px.NodeChanges[node.Path]; found {
-		attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
 	} else {
-		attr.Mtime = uint64(px.BigBang.Unix())
+		var attr fuse.Attr
+		attr.Ctime = uint64(px.BigBang.Unix())
+		if _, found := px.NodeChanges[node.Path]; found {
+			attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
+		} else {
+			attr.Mtime = uint64(px.BigBang.Unix())
+		}
+		if node.IsDir() {
+			attr.Mode = fuse.S_IFDIR|0665
+		} else {
+			attr.Mode = fuse.S_IFREG|0444
+			attr.Size = uint64(len(node.Value))
+		}
+		return &attr, fuse.OK
 	}
-	if node.IsDir() {
-		attr.Mode = fuse.S_IFDIR | 0665
-	} else {
-		attr.Mode = fuse.S_IFREG | 0444
-		attr.Size = uint64(len(node.Value))
-	}
-	return &attr, fuse.OK
 }
 
 func (px *FuseKVFileSystem) Rmdir(name string, context *fuse.Context) (code fuse.Status) {
@@ -159,7 +158,7 @@ func (px *FuseKVFileSystem) Create(name string, flags uint32, mode uint32, conte
 func (px *FuseKVFileSystem) OpenDir(name string, context *fuse.Context) (stream []fuse.DirEntry, status fuse.Status) {
 	entries := []fuse.DirEntry{}
 	/* step: get a list of the nodes under the path */
-	items, found := px.Cache.Get(name)
+	nodes, found := px.Cache.Get(name)
 	if !found {
 		nodes, err := px.StoreKV.List(name)
 		if err != nil {
@@ -167,9 +166,9 @@ func (px *FuseKVFileSystem) OpenDir(name string, context *fuse.Context) (stream 
 			return entries, fuse.EPERM
 		}
 		px.Cache.Set(name,nodes,0)
-		items = nodes
 	}
-	for _, node := range items.([]config.Node) {
+	items := nodes.([]*config.Node)
+	for _, node := range items {
 		chunks := strings.Split(node.Path, "/")
 		file := chunks[len(chunks)-1]
 		if node.IsDir() {

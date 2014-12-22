@@ -46,14 +46,14 @@ func NewEtcdStoreClient(uri *url.URL) (KVStore, error) {
 	return store, nil
 }
 
-func (r *EtcdStoreClient) Get(key string) (Node,error) {
+func (r *EtcdStoreClient) Get(key string) (*Node,error) {
 	if !strings.HasPrefix(key, "/") {
 		key = "/" + key
 	}
 	/* step: lets check the cache */
 	if response, err := r.GetRaw(key); err != nil {
 		glog.Errorf("Failed to get the key: %s, error: %s", key, err)
-		return Node{}, err
+		return nil, err
 	} else {
 		return r.CreateNode(response.Node), nil
 	}
@@ -106,7 +106,7 @@ func (r *EtcdStoreClient) Mkdir(path string) error {
 	return nil
 }
 
-func (r *EtcdStoreClient) List(path string) ([]Node, error) {
+func (r *EtcdStoreClient) List(path string) ([]*Node, error) {
 	if !strings.HasPrefix(path, "/" ) || path == "" {
 		path = "/" + path
 	}
@@ -115,7 +115,7 @@ func (r *EtcdStoreClient) List(path string) ([]Node, error) {
 		glog.Errorf("List() failed to get path: %s, error: %s", path, err)
 		return nil, err
 	} else {
-		list := make([]Node, 0)
+		list := make([]*Node, 0)
 		if response.Node.Dir == false {
 			glog.Errorf("List() path: %s is not a directory node", path)
 			return nil, InvalidDirectoryErr
@@ -160,8 +160,8 @@ func (r *EtcdStoreClient) Watch(key string, updateChannel chan NodeChange) (chan
 	return stopChannel,nil
 }
 
-func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (Node) {
-	node := Node{}
+func (r *EtcdStoreClient) CreateNode(response *etcd.Node) (*Node) {
+	node := &Node{}
 	node.Path = response.Key
 	if response.Dir == false {
 		node.Directory = false

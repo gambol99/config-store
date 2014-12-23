@@ -51,29 +51,27 @@ func main() {
 	filesystem, err := store.NewFuseKVFileSystem()
 	if err != nil {
 		glog.Errorf("Failed to create the K/V FileSystem, error: %s", err)
-	} else {
-
 	}
+
 	nfs := pathfs.NewPathNodeFs( filesystem, nil)
-	server, _, err := nodefs.MountRoot(
+	if server, _, err := nodefs.MountRoot(
 		*mount_point, nfs.Root(), &nodefs.Options{
 			NegativeTimeout: 0,
 			AttrTimeout:     time.Second,
 			EntryTimeout:    time.Second,
 			Owner:           &fuse.Owner{
 				Uid: uint32(0),
-				Gid: uint32(0)}})
-
-	if err != nil {
+				Gid: uint32(0)}}); err != nil {
 		glog.Fatalf("Mount fail: %v\n", err)
+	} else {
+		signalChannel := make(chan os.Signal, 1)
+		signal.Notify(signalChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+		go func() {
+			<-signalChannel
+			glog.Infof("Recieved a kill signal, attempting to unmount and exit")
+			server.Unmount()
+			os.Exit(0)
+		}()
+		server.Serve()
 	}
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-		<-signalChannel
-		glog.Infof("Recieved a kill signal, attempting to unmount and exit")
-		server.Unmount()
-		os.Exit(0)
-	}()
-	server.Serve()
 }

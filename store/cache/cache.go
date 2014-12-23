@@ -86,6 +86,10 @@ func (c *CacheStore) ReapItems() {
 }
 
 func (c *CacheStore) Get(key string) (interface{},bool) {
+	/* step: if the key is empty return */
+	if key == "" {
+		return nil, false
+	}
 	c.RLock()
 	defer c.RUnlock()
 	glog.V(9).Infof("Get() key: %s", key)
@@ -97,6 +101,10 @@ func (c *CacheStore) Get(key string) (interface{},bool) {
 }
 
 func (c *CacheStore) Set(key string, item interface{}, ttl time.Duration ) {
+	/* step: if the key is empty return */
+	if key == "" {
+		return
+	}
 	c.Lock()
 	defer c.Unlock()
 	expiration_time := int64(0)

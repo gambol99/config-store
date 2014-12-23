@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/gambol99/config-store/store/config"
-	"github.com/golang/glog"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
+	"github.com/golang/glog"
 )
 
 type KVFile struct {
@@ -79,7 +79,7 @@ func (f *KVFile) GetAttr(attr *fuse.Attr) fuse.Status {
 		glog.Errorf("GetAttr() Failed to get the key: %s, error: %s", f.Path, err)
 		return fuse.EIO
 	} else {
-		attr.Mode = fuse.S_IFREG | 0666
+		attr.Mode = fuse.S_IFREG | 0444
 		attr.Size = uint64(len(node.Value))
 	}
 	return fuse.OK

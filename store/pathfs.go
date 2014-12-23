@@ -108,13 +108,16 @@ func (px *FuseKVFileSystem) GetAttr(name string, context *fuse.Context) (*fuse.A
 	} else {
 		var attr fuse.Attr
 		attr.Ctime = uint64(px.BigBang.Unix())
+		attr.Mode = fuse.S_IFDIR|0665
+		attr.Gid  = 0
+		attr.Uid  = 0
 		if _, found := px.NodeChanges[node.Path]; found {
 			attr.Mtime = uint64(px.NodeChanges[node.Path].Unix())
 		} else {
 			attr.Mtime = uint64(px.BigBang.Unix())
 		}
 		if node.IsDir() {
-			attr.Mode = fuse.S_IFDIR|0665
+
 		} else {
 			attr.Mode = fuse.S_IFREG|0444
 			attr.Size = uint64(len(node.Value))

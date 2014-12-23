@@ -18,7 +18,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gambol99/config-store/cache"
+	"github.com/gambol99/config-store/store/cache"
 	"github.com/gambol99/config-store/store/config"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 	"github.com/golang/glog"

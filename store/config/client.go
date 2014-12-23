@@ -31,9 +31,9 @@ func Verbose(message string, args ...interface{}) {
 
 type KVStore interface {
 	/* retrieve a key from the store */
-	Get(key string) (Node, error)
+	Get(key string) (*Node, error)
 	/* Get a list of all the nodes under the path */
-	List(path string) ([]Node, error)
+	List(path string) ([]*Node, error)
 	/* set a key in the store */
 	Set(key string, value string) error
 	/* delete a key from the store */

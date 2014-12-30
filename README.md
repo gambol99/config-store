@@ -1,5 +1,4 @@
-[![Build Status](https://drone.io/github.com/gambol99/optionscrapper/status.png)](https://drone.io/github.com/gambol99/optionscrapper/latest)
-
+[![Build Status](https://drone.io/github.com/gambol99/config-store/status.png)](https://drone.io/github.com/gambol99/config-store/latest)
 config-store
 ============
 

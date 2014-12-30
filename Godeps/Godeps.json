@@ -1,0 +1,27 @@
+{
+	"ImportPath": "github.com/gambol99/config-store",
+	"GoVersion": "go1.3.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/armon/consul-api",
+			"Rev": "74cc5bab614dfecd6fe4ee5975b6ac97d2abc672"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-etcd/etcd",
+			"Comment": "v0.2.0-rc1-127-g6fe04d5",
+			"Rev": "6fe04d580dfb71c9e34cbce2f4df9eefd1e1241e"
+		},
+		{
+			"ImportPath": "github.com/golang/glog",
+			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+		},
+		{
+			"ImportPath": "github.com/hanwen/go-fuse/fuse",
+			"Rev": "5d16aa11eef4643de2d91e88a64dcb6138705d58"
+		},
+		{
+			"ImportPath": "github.com/hanwen/go-fuse/splice",
+			"Rev": "5d16aa11eef4643de2d91e88a64dcb6138705d58"
+		}
+	]
+}
